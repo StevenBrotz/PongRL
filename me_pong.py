@@ -139,7 +139,7 @@ def main():
     observation = env.reset() # This gets us the image
 
     toResume = True        # Whether or not to build off saved model
-    filename = '2900.p'           # File to resume from 
+    filename = '3800.p'           # File to resume from 
 
     # hyperparameters
     episode_number = 0
@@ -232,8 +232,8 @@ def main():
             #print('resetting env. episode reward total was %f. running mean: %f' % (reward_sum, running_reward))
             myCsvRow = str(episode_number) + "," + str(reward_sum) + "\n"
             fd.write(myCsvRow)
-            if episode_number % 100 == 0: 
-                # Save every 100 episodes 
+            if episode_number % 200 == 0: 
+                # Save every 200 episodes 
                 pickle.dump(weights, open(str(episode_number) +'.p', 'wb'))
                 print('Saving weights from episode %i.' %(episode_number))
             reward_sum = 0
