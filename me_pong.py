@@ -139,7 +139,7 @@ def main():
     observation = env.reset() # This gets us the image
 
     toResume = True        # Whether or not to build off saved model
-    filename = '3800.p'           # File to resume from 
+    filename = '6000.p'           # File to resume from 
 
     # hyperparameters
     episode_number = 0
