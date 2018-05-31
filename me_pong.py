@@ -202,6 +202,7 @@ def main():
 
         if done: # an episode finished
             episode_number += 1
+            print ('Completed episode %i.' %(episode_number))
 
             # Combine the following values for the episode
             episode_hidden_layer_values = np.vstack(episode_hidden_layer_values)
@@ -232,9 +233,9 @@ def main():
             #print('resetting env. episode reward total was %f. running mean: %f' % (reward_sum, running_reward))
             myCsvRow = str(episode_number) + "," + str(reward_sum) + "\n"
             fd.write(myCsvRow)
-            if episode_number % 200 == 0: 
+            if episode_number % 100 == 0: 
                 # Save every 200 episodes 
-                pickle.dump(weights, open(str(episode_number) +'.p', 'wb'))
+                pickle.dump(weights, open(str(episode_number) +'.p', 'wb'), protocol=2)
                 print('Saving weights from episode %i.' %(episode_number))
             reward_sum = 0
             prev_processed_observations = None
