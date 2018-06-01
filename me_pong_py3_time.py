@@ -34,6 +34,8 @@
 import gym
 import numpy as np
 import pickle 
+import time 
+import os 
 
 def downsample(image):
     # Take only alternate pixels - basically halves the resolution of the image (which is fine for us)
@@ -92,27 +94,6 @@ def choose_action(probability):
          # signifies down in openai gym
         return 3
 
-def compute_gradient(gradient_log_p, hidden_layer_values, observation_values, weights):
-    """ See here: http://neuralnetworksanddeeplearning.com/chap2.html"""
-    delta_L = gradient_log_p
-    dC_dw2 = np.dot(hidden_layer_values.T, delta_L).ravel()
-    delta_l2 = np.outer(delta_L, weights['2'])
-    delta_l2 = relu(delta_l2)
-    dC_dw1 = np.dot(delta_l2.T, observation_values)
-    return {
-        '1': dC_dw1,
-        '2': dC_dw2
-    }
-
-def update_weights(weights, expectation_g_squared, g_dict, decay_rate, learning_rate):
-    """ See here: http://sebastianruder.com/optimizing-gradient-descent/index.html#rmsprop"""
-    epsilon = 1e-5
-    for layer_name in weights.keys():
-        g = g_dict[layer_name]
-        expectation_g_squared[layer_name] = decay_rate * expectation_g_squared[layer_name] + (1 - decay_rate) * g**2
-        weights[layer_name] += (learning_rate * g)/(np.sqrt(expectation_g_squared[layer_name] + epsilon))
-        g_dict[layer_name] = np.zeros_like(weights[layer_name]) # reset batch gradient buffer
-
 def discount_rewards(rewards, gamma):
     """ Actions you took 20 steps before the end result are less important to the overall result than an action you took a step ago.
     This implements that logic by discounting the reward on previous actions based on how long ago they were taken"""
@@ -133,14 +114,11 @@ def discount_with_rewards(gradient_log_p, episode_rewards, gamma):
     discounted_episode_rewards /= np.std(discounted_episode_rewards)
     return gradient_log_p * discounted_episode_rewards
 
-
-def main():
+def ret_time(filename):
     env = gym.make("Pong-v0")
     observation = env.reset() # This gets us the image
 
-    toResume = True        # Whether or not to build off saved model
-    filename = '10400.p'           # File to resume from 
-
+    toResume = False        # Whether or not to build off saved model
     # hyperparameters
     episode_number = 0
     batch_size = 10
@@ -155,89 +133,44 @@ def main():
     running_reward = None
     prev_processed_observations = None
     if toResume:
-        weights = pickle.load(open(filename, 'rb'))
+        weights = pickle.load(open(filename, 'rb'), encoding='bytes')
     else:
         weights = {
             '1': np.random.randn(num_hidden_layer_neurons, input_dimensions) / np.sqrt(input_dimensions),
             '2': np.random.randn(num_hidden_layer_neurons) / np.sqrt(num_hidden_layer_neurons)
         }
 
-    # To be used with rmsprop algorithm (http://sebastianruder.com/optimizing-gradient-descent/index.html#rmsprop)
-    expectation_g_squared = {}
-    g_dict = {}
-    for layer_name in weights.keys():
-        expectation_g_squared[layer_name] = np.zeros_like(weights[layer_name])
-        g_dict[layer_name] = np.zeros_like(weights[layer_name])
-
-    episode_hidden_layer_values, episode_observations, episode_gradient_log_ps, episode_rewards = [], [], [], []
-
     # This file stores data from each run for plotting later 
-    fd = open('Running_Data.csv','a')
+    fd = open('time.csv','a')
+    count = 1
+    start_time = time.time()
+    #env.render()
+    while (count > 0):
 
-    while True:
-        #env.render()
         processed_observations, prev_processed_observations = preprocess_observations(observation, prev_processed_observations, input_dimensions)
         hidden_layer_values, up_probability = apply_neural_nets(processed_observations, weights)
-    
-        episode_observations.append(processed_observations)
-        episode_hidden_layer_values.append(hidden_layer_values)
 
         action = choose_action(up_probability)
 
         # carry out the chosen action
         observation, reward, done, info = env.step(action)
 
-        reward_sum += reward
-        episode_rewards.append(reward)
-
-        # see here: http://cs231n.github.io/neural-networks-2/#losses
-        fake_label = 1 if action == 2 else 0
-        loss_function_gradient = fake_label - up_probability
-        episode_gradient_log_ps.append(loss_function_gradient)
-
-        # Used to track the rewards each episode
-        reward_sums = []
-        # Used to track
-        running_means = []
-
         if done: # an episode finished
-            episode_number += 1
-            print ('Completed episode %i.' %(episode_number))
+            count -= 1
 
-            # Combine the following values for the episode
-            episode_hidden_layer_values = np.vstack(episode_hidden_layer_values)
-            episode_observations = np.vstack(episode_observations)
-            episode_gradient_log_ps = np.vstack(episode_gradient_log_ps)
-            episode_rewards = np.vstack(episode_rewards)
+    duration = time.time() - start_time
+    average_duration = duration 
+    myCsvRow = str(episode_number) + "," + str(average_duration) + "\n"
+    fd.write(myCsvRow)
 
-            # Tweak the gradient of the log_ps based on the discounted rewards
-            episode_gradient_log_ps_discounted = discount_with_rewards(episode_gradient_log_ps, episode_rewards, gamma)
+def main():
+    all_files = os.listdir()
+    saved_files = [i for i in all_files if i[-2:] == '.p']
+    # for i in saved_files:
+    #     ret_time(i)
+    ret_time('0.p')
 
-            gradient = compute_gradient(
-              episode_gradient_log_ps_discounted,
-              episode_hidden_layer_values,
-              episode_observations,
-              weights
-            )
 
-            # Sum the gradient for use when we hit the batch size
-            for layer_name in gradient:
-                g_dict[layer_name] += gradient[layer_name]
 
-            if episode_number % batch_size == 0:
-                update_weights(weights, expectation_g_squared, g_dict, decay_rate, learning_rate)
-
-            episode_hidden_layer_values, episode_observations, episode_gradient_log_ps, episode_rewards = [], [], [], [] # reset values
-            observation = env.reset() # reset env
-            running_reward = reward_sum if running_reward is None else running_reward * 0.99 + reward_sum * 0.01
-            #print('resetting env. episode reward total was %f. running mean: %f' % (reward_sum, running_reward))
-            myCsvRow = str(episode_number) + "," + str(reward_sum) + "\n"
-            fd.write(myCsvRow)
-            if episode_number % 100 == 0: 
-                # Save every 100 episodes 
-                pickle.dump(weights, open(str(episode_number) +'.p', 'wb'), protocol=2)
-                print('Saving weights from episode %i.' %(episode_number))
-            reward_sum = 0
-            prev_processed_observations = None
 
 main()

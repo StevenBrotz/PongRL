@@ -155,7 +155,7 @@ def main():
     running_reward = None
     prev_processed_observations = None
     if toResume:
-        weights = pickle.load(open(filename, 'rb'))
+        weights = pickle.load(open(filename, 'rb'), encoding='bytes')
     else:
         weights = {
             '1': np.random.randn(num_hidden_layer_neurons, input_dimensions) / np.sqrt(input_dimensions),
@@ -202,7 +202,6 @@ def main():
 
         if done: # an episode finished
             episode_number += 1
-            print ('Completed episode %i.' %(episode_number))
 
             # Combine the following values for the episode
             episode_hidden_layer_values = np.vstack(episode_hidden_layer_values)
@@ -234,8 +233,8 @@ def main():
             myCsvRow = str(episode_number) + "," + str(reward_sum) + "\n"
             fd.write(myCsvRow)
             if episode_number % 100 == 0: 
-                # Save every 100 episodes 
-                pickle.dump(weights, open(str(episode_number) +'.p', 'wb'), protocol=2)
+                # Save every 200 episodes 
+                pickle.dump(weights, open(str(episode_number) +'.p', 'wb'))
                 print('Saving weights from episode %i.' %(episode_number))
             reward_sum = 0
             prev_processed_observations = None
